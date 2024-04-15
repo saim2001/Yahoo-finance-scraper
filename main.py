@@ -16,7 +16,7 @@ import pandas as pd
 class companyInfo(scrapy.Spider):
     name = "spider_name"
     emails = []
-    tickers = []
+    tickers = set()
     yielded_items = []
 
 
@@ -82,12 +82,15 @@ class companyInfo(scrapy.Spider):
     def start_requests(self):
         for index,row in self.df.iterrows():
             print(f"=>Processing row: {index}")
+            
+
+
             yield scrapy.Request(
                 url=f"https://query1.finance.yahoo.com/v1/finance/search?q={row["company_name"]}&lang=en-US&region=US&quotesCount=6&newsCount=2&listsCount=2&enableFuzzyQuery=true&quotesQueryId=tss_match_phrase_query&multiQuoteQueryId=multi_quote_single_token_query&newsQueryId=news_cie_vespa&enableCb=true&enableNavLinks=true&enableEnhancedTrivialQuery=true&enableResearchReports=true&enableCulturalAssets=true&enableLogoUrl=true&researchReportsCount=2",
                 callback=self.parse_searchresults,
-                meta={'ticker': row['ticker'],"company_name":row['company_name']},
+                meta={'ticker': row['ticker'],"company_name":row['company_name'],'found':False},
                 method="GET",
-                headers=self.headers
+                headers=self.headers,
             )
 
     def parse_searchresults(self,response):
@@ -95,22 +98,13 @@ class companyInfo(scrapy.Spider):
         parsed_data = json.loads(response.text)
         pprint(type(parsed_data["quotes"]))
     
+        
+        
 
-
-        for i in parsed_data['news']:
-            print(response.meta["ticker"])
-            if ("relatedTickers" not in i.keys()) and (response.meta["ticker"] not in self.tickers):
-                yield scrapy.Request(
-                    url=f"https://finance.yahoo.com/quote/{response.meta['ticker']}/profile",
-                    headers=self.headers_2,
-                    method="GET",
-                    callback=self.parse_profiles,
-                    meta={'ticker': response.meta["ticker"],"news":False,"company_name":response.meta["company_name"]}
-                )
-            elif "relatedTickers" in i.keys():
-
-                if response.meta["ticker"] in i["relatedTickers"]:
-                    self.tickers.append(response.meta["ticker"])
+        if (response.meta["ticker"] == "PRIVATE"):
+            for i in parsed_data['news']:
+                if response.meta["company_name"].lower() in i["title"]:
+                    response.meta["found"] = True
                     yield scrapy.Request(
                         url=i["link"],
                         method="GET",
@@ -118,7 +112,54 @@ class companyInfo(scrapy.Spider):
                         callback=self.parse_news,
                         meta={'ticker': response.meta["ticker"],"company_name":response.meta["company_name"]}
                     )
-        
+
+        else:
+            if (response.meta["ticker"] == ""):
+                for i in parsed_data["quotes"]:
+                    if i["longname"] == response.meta["company_name"]:
+                        response.meta["ticker"] == i['symbol']
+                        break
+            
+
+            for i in parsed_data['news']:
+                print(response.meta["ticker"])
+                if ("relatedTickers" not in i.keys()) and (response.meta["ticker"] not in self.tickers):
+                    response.meta["found"] = True
+                    yield scrapy.Request(
+                        url=f"https://finance.yahoo.com/quote/{response.meta['ticker']}/profile",
+                        headers=self.headers_2,
+                        method="GET",
+                        callback=self.parse_profiles,
+                        meta={'ticker': response.meta["ticker"],"news":False,"company_name":response.meta["company_name"]}
+                    )
+                    break
+                elif "relatedTickers" in i.keys():
+
+                    if response.meta["ticker"] in i["relatedTickers"]:
+                        response.meta["found"] = True
+                        self.tickers.add(response.meta["ticker"])
+                        yield scrapy.Request(
+                            url=i["link"],
+                            method="GET",
+                            headers=self.headers_1,
+                            callback=self.parse_news,
+                            meta={'ticker': response.meta["ticker"],"company_name":response.meta["company_name"]}
+                        )
+        if response.meta["found"] == False:
+            self.yielded_items.append({
+                    "company_name": response.meta["company_name"],
+                    "ticker": "",
+                    "email": "" ,
+                    "context":  "",
+                    "context_2": "",
+                    "company_address": "",
+                    "company_phone": "",
+                    "company_website": "",
+                    "CFO_name": "",
+                    
+
+                    })
+
     
     def parse_news(self,response):
 
@@ -162,14 +203,24 @@ class companyInfo(scrapy.Spider):
 
 
                     })
-            
-        yield scrapy.Request(
-            url=f"https://finance.yahoo.com/quote/{response.meta['ticker']}/profile",
-            headers=self.headers_2,
-            method="GET",
-            callback=self.parse_profiles,
-            meta={'ticker': response.meta["ticker"],"news":True,"company_name":response.meta["company_name"]},
-        )
+        if (response.meta["ticker"] != "PRIVATE"):
+            yield scrapy.Request(
+                url=f"https://finance.yahoo.com/quote/{response.meta['ticker']}/profile",
+                headers=self.headers_2,
+                method="GET",
+                callback=self.parse_profiles,
+                meta={'ticker': response.meta["ticker"],"news":True,"company_name":response.meta["company_name"]},
+            )
+        else:
+            self.yielded_items.append({
+                    "company_address":"",
+                    "company_phone": "",
+                    "company_website": "",
+                    "CFO_name":  "",
+                    
+
+                    })
+
         
     def parse_profiles(self,response):
 
@@ -178,7 +229,12 @@ class companyInfo(scrapy.Spider):
         phone = selector.xpath("//a[contains(@href,'tel:')]/text()").get()
         website = selector.xpath("//div[@data-test='qsp-profile']//a[contains(@href,'https:')]/text()").get()
         CFO_name = selector.xpath("//tr[contains(.,'Chief Financial Officer') or contains(.,'CFO')]//td[1]//text()").get()
-         
+        if address == None:
+            address = selector.xpath("//div[contains(@class,'address')]//text()").getall()
+        if website == None:
+            website = selector.xpath("//a[@aria-label='website link']//text()").getall()
+        
+        print([response.meta['company_name'],address,phone,website,CFO_name])
         if response.meta["news"] == True:
             for row in self.yielded_items:
                 if row["ticker"] == response.meta['ticker']:
@@ -200,8 +256,7 @@ class companyInfo(scrapy.Spider):
                     
 
                     })
-
-        
+            
     def closed(self, reason):
         # Convert the class-level list to a DataFrame
         df = pd.DataFrame(self.yielded_items)

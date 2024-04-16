@@ -2,10 +2,14 @@ import scrapy
 import utils
 import json
 import re
+import pandas as pd
+import numpy as np
 from scrapy.crawler import CrawlerProcess
 from scrapy.selector import Selector
 from pprint import pprint
-import pandas as pd
+import scrapy.utils.misc
+import scrapy.core.scraper
+
 
 
 
@@ -114,11 +118,13 @@ class companyInfo(scrapy.Spider):
                     )
 
         else:
-            if (response.meta["ticker"] == ""):
+            if (response.meta["ticker"] == "") or (pd.notnull(response.meta["ticker"]) == False):
+                print(f"in{True}")
                 for i in parsed_data["quotes"]:
-                    if i["longname"] == response.meta["company_name"]:
-                        response.meta["ticker"] == i['symbol']
-                        break
+                    if "longname" in i:
+                        if i["longname"] == response.meta["company_name"]:
+                            response.meta["ticker"] == i['symbol']
+                            break
             
 
             for i in parsed_data['news']:
@@ -228,11 +234,11 @@ class companyInfo(scrapy.Spider):
         address = selector.xpath("//div[@data-test='qsp-profile']//p[1]/text()[not(ancestor::a[@href[contains(., 'tel:') or contains(., 'http')]])]").getall()
         phone = selector.xpath("//a[contains(@href,'tel:')]/text()").get()
         website = selector.xpath("//div[@data-test='qsp-profile']//a[contains(@href,'https:')]/text()").get()
-        CFO_name = selector.xpath("//tr[contains(.,'Chief Financial Officer') or contains(.,'CFO')]//td[1]//text()").get()
-        if address == None:
+        CFO_name = selector.xpath("//tr[contains(.,'Chief Financial Officer') or contains(.,'CFO')or contains(.,'Financial Officer')]//td[1]//text()").get()
+        if len(address) == 0:
             address = selector.xpath("//div[contains(@class,'address')]//text()").getall()
         if website == None:
-            website = selector.xpath("//a[@aria-label='website link']//text()").getall()
+            website = selector.xpath("//a[@aria-label='website link']//text()").get()
         
         print([response.meta['company_name'],address,phone,website,CFO_name])
         if response.meta["news"] == True:
@@ -257,24 +263,36 @@ class companyInfo(scrapy.Spider):
 
                     })
             
+    
+            
     def closed(self, reason):
         # Convert the class-level list to a DataFrame
         df = pd.DataFrame(self.yielded_items)
 
         # Write the DataFrame to a CSV file
-        df.to_csv("output/results.csv", index=False)
+        df.to_csv("results.csv", index=False)
 
 
 file = str(input("Enter file path to scrape: "))
-df = utils.read_csv(r'{}'.format(file))
+try:
+    df = utils.read_csv(r'{}'.format(file))
+except Exception as e:
+    print(f"[INFO] {e}")
+
 print(df)
 
 
 df.columns = df.columns.str.replace('[^a-zA-Z0-9]', '')
+
+def warn_on_generator_with_return_value_stub(spider, callable):
+        pass
+scrapy.utils.misc.warn_on_generator_with_return_value = warn_on_generator_with_return_value_stub
+scrapy.core.scraper.warn_on_generator_with_return_value = warn_on_generator_with_return_value_stub
 process = CrawlerProcess()
 process.crawl(companyInfo, df=df)
 process.start()
 process.join()
 print("finished")
-
+while True:
+    pass
 

@@ -28,13 +28,7 @@ class companyInfo(scrapy.Spider):
 
 
     custom_settings = {
-        'DOWNLOAD_DELAY' : 3, 
-        "ROBOTSTXT_OBEY" : False,
-
-        # configuring output format, export as CSV format
-        "FEED_FORMAT" : "csv",
-        "FEED_URI" : "output/results.csv",
-        "COOKIES_ENABLED" : False,
+        'DOWNLOAD_DELAY' : 3
     }
 
     headers = {
@@ -90,6 +84,7 @@ class companyInfo(scrapy.Spider):
         suffixes_to_remove = ["Co", "Company", "Inc", "Incorporated", "Ltd", "Corp", "Ltd.", "Inc.", "Corp.", "LP", "L.P.", "LLC", ",","."]
         # Construct a regular expression pattern to match any of the suffixes surrounded by word boundaries
         pattern = r'\b(?:' + '|'.join(suffixes_to_remove) + r')\b'
+        pattern = re.compile(pattern, re.IGNORECASE)
 
         for index,row in self.df.iterrows():
 
@@ -105,7 +100,7 @@ class companyInfo(scrapy.Spider):
                 
             cleaned_company_name = company.replace('\xa0','')
             # Use re.sub() to replace matched suffixes with an empty string
-            company_name_wo_sff = re.sub(pattern, '', cleaned_company_name.replace(',','')) 
+            company_name_wo_sff = re.sub(pattern, ' ', cleaned_company_name.replace(',','').replace('.','').replace("'",'')) 
 
             yield scrapy.Request(
                 url=f"https://query1.finance.yahoo.com/v1/finance/search?q={company}&lang=en-US&region=US&quotesCount=6&newsCount=2&listsCount=2&enableFuzzyQuery=true&quotesQueryId=tss_match_phrase_query&multiQuoteQueryId=multi_quote_single_token_query&newsQueryId=news_cie_vespa&enableCb=true&enableNavLinks=true&enableEnhancedTrivialQuery=true&enableResearchReports=true&enableCulturalAssets=true&enableLogoUrl=true&researchReportsCount=2",
@@ -145,7 +140,7 @@ class companyInfo(scrapy.Spider):
                 for i in parsed_data["quotes"]:
                     if "longname" in i:
                         print([response.meta["company_name"]])
-                        if (response.meta["full_company_name"] in i["longname"]) or (response.meta["company_name"] in i["longname"]):
+                        if (response.meta["full_company_name"].lower() in i["longname"].lower()) or (response.meta["company_name"].lower() in i["longname"].lower()):
                             print("doublein")
                             response.meta["ticker"] = i['symbol']
                             print(response.meta["ticker"])
@@ -372,20 +367,25 @@ class companyInfo(scrapy.Spider):
                         "ticker":response.meta['ticker']
                     }
                 )
-        except ValueError:
-            base_url = "https://example.com"
-            relative_url = "/investor/overview"
-            full_url = urljoin(base_url, relative_url)
-            yield scrapy.Request(
-                    url=full_url,
-                    method="GET",
-                    headers=self.headers_2,
-                    callback=self.parse_investors_email,
-                    meta={
-                        "ticker":response.meta['ticker']
-                    }
-                )
-            
+        except:
+            try:
+                base_url = "https://example.com"
+                relative_url = "/investor/overview"
+                full_url = urljoin(base_url, relative_url)
+                yield scrapy.Request(
+                        url=full_url,
+                        method="GET",
+                        headers=self.headers_2,
+                        callback=self.parse_investors_email,
+                        meta={
+                            "ticker":response.meta['ticker']
+                        }
+                    )
+            except:
+                for row in self.yielded_items:
+                    if row["ticker"] == response.meta['ticker']:
+                        row["email_2"] = ''
+
     
     def parse_investors_email(self,response):
 
@@ -436,4 +436,3 @@ process.join()
 print("finished")
 # while True:
 #     pass
-

@@ -130,7 +130,8 @@ class companyInfo(scrapy.Spider):
                         meta={
                             'ticker': response.meta["ticker"],
                             "full_company_name":response.meta["full_company_name"],
-                            "company_name":response.meta["company_name"]
+                            "company_name":response.meta["company_name"],
+                            "url": i["link"]
                             }
                     )
 
@@ -158,7 +159,8 @@ class companyInfo(scrapy.Spider):
                             'ticker': response.meta["ticker"],
                             "news":False,
                             "full_company_name":response.meta["full_company_name"],
-                            "company_name":response.meta["company_name"]
+                            "company_name":response.meta["company_name"],
+                            'url': f"https://finance.yahoo.com/quote/{response.meta['ticker']}/profile"
                             }
                     )   
             for i in parsed_data['news']:
@@ -175,7 +177,8 @@ class companyInfo(scrapy.Spider):
                             'ticker': response.meta["ticker"],
                             "news":False,
                             "full_company_name":response.meta["full_company_name"],
-                            "company_name":response.meta["company_name"]
+                            "company_name":response.meta["company_name"],
+                            'url': f"https://finance.yahoo.com/quote/{response.meta['ticker']}/profile"
                             }
                     )
                     break
@@ -192,7 +195,8 @@ class companyInfo(scrapy.Spider):
                             meta={
                             'ticker': response.meta["ticker"],
                             "full_company_name":response.meta["full_company_name"],
-                            "company_name":response.meta["company_name"]
+                            "company_name":response.meta["company_name"],
+                            "url": i["link"]
                             }
                         )
         if response.meta["found"] == False:
@@ -208,7 +212,8 @@ class companyInfo(scrapy.Spider):
                     "company_phone": "",
                     "company_website": "",
                     "CFO_full_name": "",
-                    "CFO_first_name": ""
+                    "CFO_first_name": "",
+                    'URLs':[]
                     
 
                     })
@@ -253,7 +258,8 @@ class companyInfo(scrapy.Spider):
                     "ticker": response.meta['ticker'],
                     "email": i ,
                     "context":  " ".join(content),
-                    "context_2": ""
+                    "context_2": "",
+                    "URLs":[response.meta['url']]
 
 
                     })
@@ -267,8 +273,10 @@ class companyInfo(scrapy.Spider):
                     'ticker': response.meta["ticker"],
                     "news":True,
                     "full_company_name":response.meta["full_company_name"],
-                    "company_name":response.meta["company_name"]},
-                    
+                    "company_name":response.meta["company_name"],
+                    "url": response.meta['url']  
+                    }
+                                       
             )
         else:
             self.yielded_items.append({
@@ -276,7 +284,8 @@ class companyInfo(scrapy.Spider):
                     "company_phone": "",
                     "company_website": "",
                     "CFO_full_name": "",
-                    "CFO_first_name": ""
+                    "CFO_first_name": "",
+                    'URLs' : []
                     
 
                     })
@@ -321,6 +330,10 @@ class companyInfo(scrapy.Spider):
                     row["company_website"] = website
                     row["CFO_full_name"] = CFO_name
                     row["CFO_first_name"] = first_name
+                    if 'URLs' in row.keys():
+                        row['URLs'].append(response.meta['url'])
+                    else:
+                       row['URLs'] = [] 
         else:
             self.yielded_items.append({
                     "company_full_name": response.meta["full_company_name"],
@@ -335,6 +348,7 @@ class companyInfo(scrapy.Spider):
                     "company_website": website,
                     "CFO_full_name":CFO_name,
                     "CFO_first_name": first_name,
+                    "URLs": []
                     
 
                     })
@@ -364,7 +378,8 @@ class companyInfo(scrapy.Spider):
                     headers=self.headers_2,
                     callback=self.parse_investors_email,
                     meta={
-                        "ticker":response.meta['ticker']
+                        "ticker":response.meta['ticker'],
+                        'url' : investors_link
                     }
                 )
         except:
@@ -378,7 +393,8 @@ class companyInfo(scrapy.Spider):
                         headers=self.headers_2,
                         callback=self.parse_investors_email,
                         meta={
-                            "ticker":response.meta['ticker']
+                            "ticker":response.meta['ticker'],
+                            'url' : investors_link
                         }
                     )
             except:
@@ -400,6 +416,7 @@ class companyInfo(scrapy.Spider):
             if row["ticker"] == response.meta['ticker']:
                 if len(email_matches) >0:
                     row["email_2"] = email_matches[0]
+                    row["URLs"].append(response.meta['url'])
 
 
         

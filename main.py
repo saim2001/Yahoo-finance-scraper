@@ -384,8 +384,8 @@ class companyInfo(scrapy.Spider):
                 )
         except:
             try:
-                base_url = "https://example.com"
-                relative_url = "/investor/overview"
+                base_url = response.meta['website']
+                relative_url = investors_link
                 full_url = urljoin(base_url, relative_url)
                 yield scrapy.Request(
                         url=full_url,

@@ -166,7 +166,8 @@ class companyInfo(scrapy.Spider):
             for i in parsed_data['news']:
                 news_count +=1
                 print(response.meta["ticker"])
-                if (("relatedTickers" not in i.keys()) and (response.meta["ticker"] not in self.tickers)) or ((response.meta["ticker"] not in self.tickers) and news_count == len(parsed_data['news'])):
+                if (("relatedTickers" not in i.keys()) and (response.meta["ticker"] not in self.tickers)) or ((response.meta["ticker"] not in self.tickers) and (news_count == len(parsed_data['news']))):
+                    print('ticker found')
                     response.meta["found"] = True
                     yield scrapy.Request(
                         url=f"https://finance.yahoo.com/quote/{response.meta['ticker']}/profile",
@@ -185,6 +186,7 @@ class companyInfo(scrapy.Spider):
                 elif "relatedTickers" in i.keys():
                     print("in2",response.meta["ticker"])
                     if response.meta["ticker"] in i["relatedTickers"]:
+                        print('ticker found')
                         response.meta["found"] = True
                         self.tickers.add(response.meta["ticker"])
                         yield scrapy.Request(
@@ -199,7 +201,9 @@ class companyInfo(scrapy.Spider):
                             "url": i["link"]
                             }
                         )
+        print(response.meta["found"] )
         if response.meta["found"] == False:
+            print(response.meta["found"] )
             self.yielded_items.append({
                     "company_full_name": response.meta["full_company_name"],
                     "company_name": response.meta["company_name"],
@@ -367,10 +371,10 @@ class companyInfo(scrapy.Spider):
     def parse_company_site(self,response):
         
         selector = Selector(response)
-        investors_link = selector.xpath("//a[contains(.,'Investor')]/@href").get()
+        investors_link = selector.xpath("//a[contains(.,'Investor') or contains(.,'Contact')]/@href").get()
         print(investors_link)
         if investors_link == '#' or '':
-            investors_link = selector.xpath("//a[contains(@href,'investor')]/@href").get()
+            investors_link = selector.xpath("//a[contains(@href,'investor') contains(.,'contact')]/@href").get()
         try:
             yield scrapy.Request(
                     url=investors_link,
@@ -387,6 +391,7 @@ class companyInfo(scrapy.Spider):
                 base_url = response.meta['website']
                 relative_url = investors_link
                 full_url = urljoin(base_url, relative_url)
+                print(full_url)
                 yield scrapy.Request(
                         url=full_url,
                         method="GET",
